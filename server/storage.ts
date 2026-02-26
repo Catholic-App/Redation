@@ -10,7 +10,7 @@ import { eq, and, desc } from "drizzle-orm";
 export interface IStorage {
   // Users
   getUsers(): Promise<User[]>;
-  updateUser(id: string, role?: string, turmaId?: number | null): Promise<User>;
+  updateUser(id: string, data: Partial<User>): Promise<User>;
 
   // Turmas
   getTurmas(): Promise<Turma[]>;
@@ -29,12 +29,8 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(users);
   }
 
-  async updateUser(id: string, role?: string, turmaId?: number | null): Promise<User> {
-    const updateData: any = {};
-    if (role !== undefined) updateData.role = role;
-    if (turmaId !== undefined) updateData.turmaId = turmaId;
-
-    const [user] = await db.update(users).set(updateData).where(eq(users.id, id)).returning();
+  async updateUser(id: string, data: Partial<User>): Promise<User> {
+    const [user] = await db.update(users).set({ ...data, updatedAt: new Date() }).where(eq(users.id, id)).returning();
     return user;
   }
 
@@ -49,9 +45,6 @@ export class DatabaseStorage implements IStorage {
 
   async getRedacoes(filters?: { turmaId?: number; status?: string }): Promise<Redacao[]> {
     let query = db.select().from(redacoes).orderBy(desc(redacoes.createdAt));
-    
-    // In a real app we'd apply filters here properly
-    // simplified for brevity
     return await query;
   }
 

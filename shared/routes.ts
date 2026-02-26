@@ -22,10 +22,24 @@ export const api = {
       input: z.object({
         role: z.enum(['student', 'teacher', 'admin']).optional(),
         turmaId: z.number().nullable().optional(),
+        isFirstLogin: z.boolean().optional(),
       }),
       responses: {
         200: z.any(),
         400: errorSchemas.validation,
+      }
+    },
+    verifyCode: {
+      method: 'POST' as const,
+      path: '/api/auth/verify-code' as const,
+      input: z.object({
+        code: z.string(),
+        targetRole: z.enum(['teacher', 'admin']),
+      }),
+      responses: {
+        200: z.object({ success: z.boolean(), message: z.string() }),
+        400: z.object({ success: z.boolean(), message: z.string() }),
+        401: errorSchemas.unauthorized,
       }
     }
   },

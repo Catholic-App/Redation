@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { api } from "@shared/routes";
-import { setupAuth, registerAuthRoutes, isAuthenticated } from "./replit_integrations/auth";
+import { setupAuth, registerAuthRoutes, isAuthenticated, authStorage } from "./replit_integrations/auth";
 import { z } from "zod";
 
 export async function registerRoutes(
@@ -17,6 +17,54 @@ export async function registerRoutes(
   app.get(api.users.list.path, isAuthenticated, async (req, res) => {
     const list = await storage.getUsers();
     res.json(list);
+  });
+
+  app.post(api.users.verifyCode.path, isAuthenticated, async (req, res) => {
+    try {
+      const { code, targetRole } = api.users.verifyCode.input.parse(req.body);
+      const user = await authStorage.getUser((req.user as any).claims.sub);
+
+      if (!user) return res.status(401).json({ message: "Usuário não encontrado" });
+
+      if (!user.isFirstLogin && user.role === targetRole) {
+        return res.json({ success: true, message: "Já autorizado" });
+      }
+
+      const ADMIN_CODE = "ADMIN1234"; 
+      const TEACHER_CODE = process.env.TEACHER_ACCESS_CODE || "PROF9999"; 
+
+      if (targetRole === 'admin') {
+        if (code === ADMIN_CODE) {
+          await storage.updateUser(user.id, { role: 'admin', isFirstLogin: false });
+          return res.json({ success: true, message: "Acesso administrativo concedido" });
+        }
+      } else if (targetRole === 'teacher') {
+        if (code === TEACHER_CODE) {
+          await storage.updateUser(user.id, { role: 'teacher', isFirstLogin: false });
+          return res.json({ success: true, message: "Acesso de professor concedido" });
+        }
+      }
+
+      res.status(400).json({ success: false, message: "Código inválido" });
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ success: false, message: err.errors[0].message });
+      }
+      res.status(500).json({ success: false, message: "Internal Error" });
+    }
+  });
+
+  app.put(api.users.update.path, isAuthenticated, async (req, res) => {
+    try {
+      const input = api.users.update.input.parse(req.body);
+      const user = await storage.updateUser(req.params.id, input);
+      res.json(user);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message });
+      }
+      res.status(500).json({ message: "Internal Error" });
+    }
   });
 
   // Turmas API
@@ -40,7 +88,6 @@ export async function registerRoutes(
 
   // Redacoes API
   app.get(api.redacoes.list.path, isAuthenticated, async (req, res) => {
-    // simplified filters
     const list = await storage.getRedacoes();
     res.json(list);
   });
@@ -53,7 +100,6 @@ export async function registerRoutes(
 
   app.post(api.redacoes.create.path, isAuthenticated, async (req, res) => {
     try {
-      // Coerce turmaId if it comes as string
       const schema = api.redacoes.create.input.extend({
         turmaId: z.coerce.number(),
         palavras: z.coerce.number(),
@@ -89,8 +135,6 @@ export async function registerRoutes(
 
   app.get(api.dashboard.metrics.path, isAuthenticated, async (req, res) => {
     const redacoes = await storage.getRedacoes();
-    
-    // Mock calculations for the dashboard
     const pendentes = redacoes.filter(r => r.status === "pendente").length;
     const corrigidas = redacoes.filter(r => r.status === "corrigido");
     
@@ -115,7 +159,6 @@ export async function registerRoutes(
     });
   });
 
-  // Seed DB immediately if needed
   await seedDatabase();
 
   return httpServer;

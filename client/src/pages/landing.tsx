@@ -1,8 +1,9 @@
 import { Button } from "@/components/ui/button";
-import { PenTool, CheckCircle, TrendingUp, ShieldCheck } from "lucide-react";
+import { PenTool, CheckCircle, GraduationCap, ShieldCheck } from "lucide-react";
 
 export default function LandingPage() {
-  const handleLogin = () => {
+  const handleLogin = (role: 'student' | 'teacher' | 'admin' = 'student') => {
+    sessionStorage.setItem("login_intent", role);
     window.location.href = "/api/login";
   };
 
@@ -20,9 +21,15 @@ export default function LandingPage() {
           </div>
           <span className="text-2xl font-bold font-display tracking-tight">RedaX</span>
         </div>
-        <Button onClick={handleLogin} size="lg" className="rounded-full px-8 font-semibold shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/40 hover:-translate-y-0.5 transition-all duration-300">
-          Entrar na Plataforma
-        </Button>
+        <div className="flex gap-4">
+          <Button variant="ghost" onClick={() => handleLogin('teacher')} className="hidden sm:flex items-center gap-2">
+            <GraduationCap size={18} />
+            Sou Professor
+          </Button>
+          <Button onClick={() => handleLogin('student')} size="lg" className="rounded-full px-8 font-semibold shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/40 hover:-translate-y-0.5 transition-all duration-300">
+            Entrar
+          </Button>
+        </div>
       </header>
 
       {/* Hero Section */}
@@ -45,29 +52,23 @@ export default function LandingPage() {
             A plataforma definitiva para escolas. Alunos enviam redações, professores corrigem com eficiência e dashboards mostram a evolução em tempo real.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
-            <Button onClick={handleLogin} size="lg" className="h-14 rounded-xl px-10 text-lg font-semibold shadow-xl shadow-primary/20 hover:shadow-2xl hover:shadow-primary/30 transition-all duration-300">
-              Começar Agora
+            <Button onClick={() => handleLogin('student')} size="lg" className="h-14 rounded-xl px-10 text-lg font-semibold shadow-xl shadow-primary/20 hover:shadow-2xl hover:shadow-primary/30 transition-all duration-300">
+              Começar como Aluno
             </Button>
-            <Button variant="outline" size="lg" className="h-14 rounded-xl px-10 text-lg font-semibold bg-background/50 backdrop-blur-sm border-2">
-              Ver Demonstração
+            <Button variant="outline" onClick={() => handleLogin('teacher')} size="lg" className="h-14 rounded-xl px-10 text-lg font-semibold bg-background/50 backdrop-blur-sm border-2">
+              Entrar como Professor
             </Button>
           </div>
           
           <div className="flex items-center gap-8 mt-12 pt-10 border-t border-border/60 w-full max-w-xl">
-            <div className="flex flex-col gap-1">
-              <h4 className="text-3xl font-display font-bold text-foreground">10k+</h4>
-              <p className="text-sm text-muted-foreground font-medium">Redações corrigidas</p>
-            </div>
-            <div className="w-px h-12 bg-border"></div>
-            <div className="flex flex-col gap-1">
-              <h4 className="text-3xl font-display font-bold text-foreground">50+</h4>
-              <p className="text-sm text-muted-foreground font-medium">Escolas parceiras</p>
-            </div>
+            <button onClick={() => handleLogin('admin')} className="text-xs text-muted-foreground hover:text-primary transition-colors flex items-center gap-1">
+              <ShieldCheck size={12} />
+              Acesso Administrativo
+            </button>
           </div>
         </div>
         
         <div className="flex-1 w-full max-w-2xl relative">
-          {/* landing page hero education study writing */}
           <div className="relative rounded-3xl overflow-hidden shadow-2xl border border-white/20 aspect-square lg:aspect-[4/3] group">
             <img 
               src="https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=1200&h=900&fit=crop" 
@@ -76,7 +77,6 @@ export default function LandingPage() {
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent"></div>
             
-            {/* Floating Glass Card */}
             <div className="absolute bottom-6 left-6 right-6 glass rounded-2xl p-6 shadow-2xl transform translate-y-2 group-hover:translate-y-0 transition-transform duration-500">
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 rounded-full bg-green-500/20 flex items-center justify-center text-green-400">
