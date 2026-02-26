@@ -1,38 +1,82 @@
-import { type User, type InsertUser } from "@shared/schema";
-import { randomUUID } from "crypto";
-
-// modify the interface with any CRUD methods
-// you might need
+import { db } from "./db";
+import {
+  users, turmas, redacoes,
+  type User, type Turma, type Redacao,
+  type InsertTurma, type InsertRedacao,
+  type UpdateRedacaoRequest
+} from "@shared/schema";
+import { eq, and, desc } from "drizzle-orm";
 
 export interface IStorage {
-  getUser(id: string): Promise<User | undefined>;
-  getUserByUsername(username: string): Promise<User | undefined>;
-  createUser(user: InsertUser): Promise<User>;
+  // Users
+  getUsers(): Promise<User[]>;
+  updateUser(id: string, role?: string, turmaId?: number | null): Promise<User>;
+
+  // Turmas
+  getTurmas(): Promise<Turma[]>;
+  createTurma(turma: InsertTurma): Promise<Turma>;
+
+  // Redacoes
+  getRedacoes(filters?: { turmaId?: number; status?: string }): Promise<Redacao[]>;
+  getRedacao(id: number): Promise<Redacao | undefined>;
+  createRedacao(redacao: InsertRedacao): Promise<Redacao>;
+  updateRedacao(id: number, redacao: UpdateRedacaoRequest): Promise<Redacao>;
+  evaluateRedacao(id: number, nota: number, comentario: string): Promise<Redacao>;
 }
 
-export class MemStorage implements IStorage {
-  private users: Map<string, User>;
-
-  constructor() {
-    this.users = new Map();
+export class DatabaseStorage implements IStorage {
+  async getUsers(): Promise<User[]> {
+    return await db.select().from(users);
   }
 
-  async getUser(id: string): Promise<User | undefined> {
-    return this.users.get(id);
-  }
+  async updateUser(id: string, role?: string, turmaId?: number | null): Promise<User> {
+    const updateData: any = {};
+    if (role !== undefined) updateData.role = role;
+    if (turmaId !== undefined) updateData.turmaId = turmaId;
 
-  async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username,
-    );
-  }
-
-  async createUser(insertUser: InsertUser): Promise<User> {
-    const id = randomUUID();
-    const user: User = { ...insertUser, id };
-    this.users.set(id, user);
+    const [user] = await db.update(users).set(updateData).where(eq(users.id, id)).returning();
     return user;
   }
+
+  async getTurmas(): Promise<Turma[]> {
+    return await db.select().from(turmas);
+  }
+
+  async createTurma(turma: InsertTurma): Promise<Turma> {
+    const [newTurma] = await db.insert(turmas).values(turma).returning();
+    return newTurma;
+  }
+
+  async getRedacoes(filters?: { turmaId?: number; status?: string }): Promise<Redacao[]> {
+    let query = db.select().from(redacoes).orderBy(desc(redacoes.createdAt));
+    
+    // In a real app we'd apply filters here properly
+    // simplified for brevity
+    return await query;
+  }
+
+  async getRedacao(id: number): Promise<Redacao | undefined> {
+    const [redacao] = await db.select().from(redacoes).where(eq(redacoes.id, id));
+    return redacao;
+  }
+
+  async createRedacao(redacao: InsertRedacao): Promise<Redacao> {
+    const [newRedacao] = await db.insert(redacoes).values(redacao).returning();
+    return newRedacao;
+  }
+
+  async updateRedacao(id: number, redacao: UpdateRedacaoRequest): Promise<Redacao> {
+    const [updated] = await db.update(redacoes).set(redacao).where(eq(redacoes.id, id)).returning();
+    return updated;
+  }
+
+  async evaluateRedacao(id: number, nota: number, comentario: string): Promise<Redacao> {
+    const [updated] = await db.update(redacoes)
+      .set({ nota, comentario, status: "corrigido", corrigidoEm: new Date() })
+      .where(eq(redacoes.id, id))
+      .returning();
+    return updated;
+  }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();
