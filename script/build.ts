@@ -17,6 +17,8 @@ const allowlist = [
   "express-session",
   "jsonwebtoken",
   "memorystore",
+  "bcryptjs",
+  "cookie-parser",
   "multer",
   "nanoid",
   "nodemailer",

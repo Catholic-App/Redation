@@ -1,48 +1,53 @@
-import type { Express } from "express";
-import { createServer, type Server } from "http";
+import type { Express, Request } from "express";
 import { storage } from "./storage";
 import { api } from "@shared/routes";
-import { setupAuth, registerAuthRoutes, isAuthenticated, authStorage } from "./replit_integrations/auth";
 import { z } from "zod";
 
-export async function registerRoutes(
-  httpServer: Server,
-  app: Express
-): Promise<Server> {
-  // Wait for auth to setup
-  await setupAuth(app);
-  registerAuthRoutes(app);
+// A interface AuthRequest agora é importada de `auth.ts` onde é definida
+import { AuthRequest } from "./auth";
+
+export async function registerRoutes(app: Express): Promise<void> {
+
+  // Rota para obter o usuário logado
+  app.get("/api/me", (req: Request, res) => {
+    const authReq = req as AuthRequest;
+    if (!authReq.user) {
+      return res.status(401).json({ message: "Não autenticado" });
+    }
+    res.json(authReq.user);
+  });
 
   // Users API
-  app.get(api.users.list.path, isAuthenticated, async (req, res) => {
+  app.get(api.users.list.path, async (req, res) => {
     const list = await storage.getUsers();
     res.json(list);
   });
 
-  app.post(api.users.verifyCode.path, isAuthenticated, async (req, res) => {
+  // Esta rota de verificação de código era específica da lógica de primeiro login do Replit.
+  // Com a nova autenticação, a lógica de atribuição de papéis (admin/teacher) precisa ser repensada.
+  // Por enquanto, vamos desativá-la e o administrador pode atribuir papéis manualmente.
+  /*
+  app.post(api.users.verifyCode.path, async (req: Request, res) => {
+    const authReq = req as AuthRequest;
     try {
       const { code, targetRole } = api.users.verifyCode.input.parse(req.body);
-      const user = await authStorage.getUser((req.user as any).claims.sub);
+      const user = authReq.user;
 
       if (!user) return res.status(401).json({ message: "Usuário não encontrado" });
 
-      if (!user.isFirstLogin && user.role === targetRole) {
-        return res.json({ success: true, message: "Já autorizado" });
+      const ADMIN_CODE = "ADMIN1234";
+      const TEACHER_CODE = process.env.TEACHER_ACCESS_CODE || "PROF9999";
+
+      let newRole = user.role;
+      if (targetRole === 'admin' && code === ADMIN_CODE) {
+        newRole = 'admin';
+      } else if (targetRole === 'teacher' && code === TEACHER_CODE) {
+        newRole = 'teacher';
       }
 
-      const ADMIN_CODE = "ADMIN1234"; 
-      const TEACHER_CODE = process.env.TEACHER_ACCESS_CODE || "PROF9999"; 
-
-      if (targetRole === 'admin') {
-        if (code === ADMIN_CODE) {
-          await storage.updateUser(user.id, { role: 'admin', isFirstLogin: false });
-          return res.json({ success: true, message: "Acesso administrativo concedido" });
-        }
-      } else if (targetRole === 'teacher') {
-        if (code === TEACHER_CODE) {
-          await storage.updateUser(user.id, { role: 'teacher', isFirstLogin: false });
-          return res.json({ success: true, message: "Acesso de professor concedido" });
-        }
+      if (newRole !== user.role) {
+        await storage.updateUser(user.id, { role: newRole });
+        return res.json({ success: true, message: `Acesso de ${newRole} concedido` });
       }
 
       res.status(400).json({ success: false, message: "Código inválido" });
@@ -53,8 +58,9 @@ export async function registerRoutes(
       res.status(500).json({ success: false, message: "Internal Error" });
     }
   });
+  */
 
-  app.put(api.users.update.path, isAuthenticated, async (req, res) => {
+  app.put(api.users.update.path, async (req, res) => {
     try {
       const input = api.users.update.input.parse(req.body);
       const user = await storage.updateUser(req.params.id, input);
@@ -68,12 +74,12 @@ export async function registerRoutes(
   });
 
   // Turmas API
-  app.get(api.turmas.list.path, isAuthenticated, async (req, res) => {
+  app.get(api.turmas.list.path, async (req, res) => {
     const list = await storage.getTurmas();
     res.json(list);
   });
 
-  app.post(api.turmas.create.path, isAuthenticated, async (req, res) => {
+  app.post(api.turmas.create.path, async (req, res) => {
     try {
       const input = api.turmas.create.input.parse(req.body);
       const turma = await storage.createTurma(input);
@@ -87,18 +93,19 @@ export async function registerRoutes(
   });
 
   // Redacoes API
-  app.get(api.redacoes.list.path, isAuthenticated, async (req, res) => {
+  app.get(api.redacoes.list.path, async (req, res) => {
     const list = await storage.getRedacoes();
     res.json(list);
   });
 
-  app.get(api.redacoes.get.path, isAuthenticated, async (req, res) => {
+  app.get(api.redacoes.get.path, async (req, res) => {
     const redacao = await storage.getRedacao(Number(req.params.id));
     if (!redacao) return res.status(404).json({ message: "Not found" });
     res.json(redacao);
   });
 
-  app.post(api.redacoes.create.path, isAuthenticated, async (req, res) => {
+  app.post(api.redacoes.create.path, async (req: Request, res) => {
+    const authReq = req as AuthRequest;
     try {
       const schema = api.redacoes.create.input.extend({
         turmaId: z.coerce.number(),
@@ -108,7 +115,7 @@ export async function registerRoutes(
       
       const redacao = await storage.createRedacao({
         ...input,
-        alunoId: (req.user as any).claims.sub
+        alunoId: authReq.user!.id
       });
       res.status(201).json(redacao);
     } catch (err) {
@@ -120,7 +127,7 @@ export async function registerRoutes(
     }
   });
 
-  app.patch(api.redacoes.evaluate.path, isAuthenticated, async (req, res) => {
+  app.patch(api.redacoes.evaluate.path, async (req, res) => {
     try {
       const input = api.redacoes.evaluate.input.parse(req.body);
       const redacao = await storage.evaluateRedacao(Number(req.params.id), input.nota, input.comentario);
@@ -133,7 +140,8 @@ export async function registerRoutes(
     }
   });
 
-  app.get(api.dashboard.metrics.path, isAuthenticated, async (req, res) => {
+  // Dashboard API
+  app.get(api.dashboard.metrics.path, async (req, res) => {
     const redacoes = await storage.getRedacoes();
     const pendentes = redacoes.filter(r => r.status === "pendente").length;
     const corrigidas = redacoes.filter(r => r.status === "corrigido");
@@ -146,24 +154,17 @@ export async function registerRoutes(
       mediaTurma: Math.round(media),
       totalEnviadas: redacoes.length,
       totalPendentes: pendentes,
-      evolucaoNotas: [
-        { data: "Semana 1", nota: 75 },
-        { data: "Semana 2", nota: 80 },
-        { data: "Semana 3", nota: 85 },
-      ],
-      ranking: [
-        { aluno: "João Silva", media: 95 },
-        { aluno: "Maria Costa", media: 92 },
-        { aluno: "Pedro Santos", media: 88 },
-      ]
+      evolucaoNotas: [], // Lógica de evolução de notas precisa ser implementada
+      ranking: [], // Lógica de ranking precisa ser implementada
     });
   });
-
-  await seedDatabase();
-
-  return httpServer;
+  
+  // A função de seed não deve ser chamada em cada inicialização em produção
+  // await seedDatabase(); 
 }
 
+// A função de seed pode ser movida para um script separado para ser executada manualmente
+/*
 async function seedDatabase() {
   try {
     const turmasList = await storage.getTurmas();
@@ -176,3 +177,4 @@ async function seedDatabase() {
     console.error("Seed error:", err);
   }
 }
+*/

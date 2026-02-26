@@ -1,10 +1,14 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
+import { handleLogin, handleRegister, isAuthenticated } from "./auth";
+import cookieParser from "cookie-parser";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 
 const app = express();
 const httpServer = createServer(app);
+
+app.use(cookieParser());
 
 declare module "http" {
   interface IncomingMessage {
@@ -60,7 +64,14 @@ app.use((req, res, next) => {
 });
 
 (async () => {
-  await registerRoutes(httpServer, app);
+      // Rotas de autenticação
+    app.post("/api/login", handleLogin);
+    app.post("/api/register", handleRegister);
+
+    // Todas as rotas abaixo exigem autenticação
+    app.use(isAuthenticated);
+
+    await registerRoutes(httpServer, app);
 
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
