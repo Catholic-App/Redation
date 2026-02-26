@@ -35,9 +35,12 @@ export function useAuth() {
   });
 
   const logoutMutation = useMutation({
-    mutationFn: logoutUser,
+    mutationFn: async () => {
+      logoutUser();
+    },
     onSuccess: () => {
       queryClient.setQueryData(["currentUser"], null);
+      queryClient.clear(); // Limpa todo o cache ao sair
     },
   });
 
@@ -45,9 +48,9 @@ export function useAuth() {
     user,
     isLoading,
     isAuthenticated: !!user,
-    login: loginMutation.mutate,
+    login: loginMutation.mutateAsync, // Usar mutateAsync para poder aguardar no componente
     isLoggingIn: loginMutation.isPending,
-    register: registerMutation.mutate,
+    register: registerMutation.mutateAsync,
     isRegistering: registerMutation.isPending,
     logout: logoutMutation.mutate,
     isLoggingOut: logoutMutation.isPending,
