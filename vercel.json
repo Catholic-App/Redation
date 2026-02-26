@@ -4,12 +4,11 @@
     {
       "src": "package.json",
       "use": "@vercel/static-build",
-      "config": { "includeFiles": ["dist/**"] }
+      "config": { "distDir": "dist/public" }
     },
     {
       "src": "server/index.ts",
-      "use": "@vercel/node",
-      "config": { "includeFiles": ["dist/**"] }
+      "use": "@vercel/node"
     }
   ],
   "routes": [
@@ -18,8 +17,12 @@
       "dest": "server/index.ts"
     },
     {
+      "src": "/assets/(.*)",
+      "dest": "/assets/$1"
+    },
+    {
       "src": "/(.*)",
-      "dest": "dist/public/$1"
+      "dest": "/index.html"
     }
   ]
 }
